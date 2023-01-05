@@ -262,9 +262,12 @@ def copy_to_local():
     if sg.PopupYesNo('Do you really want to copy trace data?') != 'Yes':
         print('canceled')
         return
+    option = ''
+    if Gui.get_value(Gui.key_cb_copy_today):
+        option = '-newermt `date "+%Y-%m-%d"` ! -newermt `date "+%Y-%m-%d"`" 23:59:59.9999"'
     cmd = f'mkdir -p {Value.copy_dir} &&' + \
         f'cd {Value.trace_data_dir} &&' + \
-        f'ls -d * | xargs -I[] tar czvf [].tgz [] &&' + \
+        f'find ./ -maxdepth 1 -mindepth 1 -type d {option} | xargs -I[] tar czvf [].tgz [] &&' + \
         f'mv *.tgz {Value.copy_dir}/.'
     run_command(cmd)
     print('Done')
