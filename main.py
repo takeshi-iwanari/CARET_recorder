@@ -61,7 +61,7 @@ class Gui():
                 [sg.Text('Record')],
                 [sg.Button('Start Recording', key=key_btn_record),
                 sg.Text('REC (please stop recording before closing this app)', key=key_text_record, text_color='RED', visible=False)],
-                [sg.Button('Reset (?)', key=key_btn_reset, tooltip=tooltip_reset)],
+                [sg.Button('!!! Reset (?)', key=key_btn_reset, tooltip=tooltip_reset)],
                 [sg.HSep()],
                 [sg.Text('Check')],
                 [sg.Button('list', key=key_btn_list)],
@@ -75,7 +75,7 @@ class Gui():
                 [sg.Button('Copy to local', key=key_btn_copy),
                 sg.Checkbox("Only today's log", key=key_cb_copy_today, default=True),
                 sg.Input(Value.copy_dir, key=key_input_copy_dir, tooltip=tooltip_copy_dir, enable_events=True)],
-                [sg.Button('Remove All Trace Data', key=key_btn_remove)],
+                [sg.Button('!!! Remove All Trace Data', key=key_btn_remove)],
                 [sg.HSep()],
                 [sg.Multiline(size=(60,15), key=key_text_output, expand_x=True, expand_y=True, write_only=True,
                             reroute_stdout=True, reroute_stderr=True, echo_stdout_stderr=True, autoscroll=True,  auto_refresh=True)],
@@ -197,18 +197,18 @@ def get_latest_trace_data_path():
 
 
 def reset():
-    if sg.PopupYesNo('Do you really want to reset LTTng session?') == 'Yes':
-        cmd = 'ps aux | grep -e lttng -e "ros2 caret record" | grep -v grep | awk \'{ print "kill -9", $2 }\' | sh'
+    if sg.PopupYesNo('Do you really want to reset LTTng session?') != 'Yes':
+        print('canceled')
+        return
+    cmd = 'ps aux | grep -e lttng -e "ros2 caret record" | grep -v grep | awk \'{ print "kill -9", $2 }\' | sh'
+    run_command(cmd)
+    cmd = 'rm -rf ~/.lttng'
+    run_command(cmd)
+    if caret_record(True):
+        latest_file = get_latest_trace_data_path()
+        cmd = f'rm -rf {latest_file}'
         run_command(cmd)
-        cmd = 'rm -rf ~/.lttng'
-        run_command(cmd)
-        if caret_record(True):
-            latest_file = get_latest_trace_data_path()
-            cmd = f'rm -rf {latest_file}'
-            run_command(cmd)
-        print('Done')
-    else:
-        print('Canceled')
+    print('Done')
 
 
 def trace_data_list():
@@ -220,52 +220,52 @@ def trace_data_list():
 
 
 def check_ctf():
-    if sg.PopupYesNo('Do you really want to run check_ctf? (It may take time)') == 'Yes':
-        print('check_ctf() is not yet implemented')
-    else:
+    if sg.PopupYesNo('Do you really want to run check_ctf? (It may take time)') != 'Yes':
         print('canceled')
+        return
+    print('check_ctf() is not yet implemented')
 
 
 def trace_point_summary():
-    if sg.PopupYesNo('Do you really want to run trace_point_summary? (It may take time)') == 'Yes':
-        print('trace_point_summary() is not yet implemented')
-    else:
+    if sg.PopupYesNo('Do you really want to run trace_point_summary? (It may take time)') != 'Yes':
         print('canceled')
+        return
+    print('trace_point_summary() is not yet implemented')
 
 
 def node_summary():
-    if sg.PopupYesNo('Do you really want to run node_summary? (It may take time)') == 'Yes':
-        print('node_summary() is not yet implemented')
-    else:
+    if sg.PopupYesNo('Do you really want to run node_summary? (It may take time)') != 'Yes':
         print('canceled')
+        return
+    print('node_summary() is not yet implemented')
 
 
 def topic_summary():
-    if sg.PopupYesNo('Do you really want to run topic_summary? (It may take time)') == 'Yes':
-        print('topic_summary() is not yet implemented')
-    else:
+    if sg.PopupYesNo('Do you really want to run topic_summary? (It may take time)') != 'Yes':
         print('canceled')
+        return
+    print('topic_summary() is not yet implemented')
 
 
 def copy_to_local():
-    if sg.PopupYesNo('Do you really want to copy trace data?') == 'Yes':
-        cmd = f'mkdir -p {Value.copy_dir} &&' + \
-            f'cd {Value.trace_data_dir} &&' + \
-            f'ls -d * | xargs -I[] tar czvf [].tgz [] &&' + \
-            f'mv *.tgz {Value.copy_dir}/.'
-        run_command(cmd)
-        print('Done')
-    else:
-        print('Canceled')
+    if sg.PopupYesNo('Do you really want to copy trace data?') != 'Yes':
+        print('canceled')
+        return
+    cmd = f'mkdir -p {Value.copy_dir} &&' + \
+        f'cd {Value.trace_data_dir} &&' + \
+        f'ls -d * | xargs -I[] tar czvf [].tgz [] &&' + \
+        f'mv *.tgz {Value.copy_dir}/.'
+    run_command(cmd)
+    print('Done')
 
 
 def remove_trace_data():
-    if sg.PopupYesNo('Do you really want to remove all trace data?') == 'Yes':
-        cmd = f'rm -rf {Value.trace_data_dir}/*'
-        run_command(cmd)
-        print('Done')
-    else:
-        print('Canceled')
+    if sg.PopupYesNo('Do you really want to remove all trace data?') != 'Yes':
+        print('canceled')
+        return
+    cmd = f'rm -rf {Value.trace_data_dir}/*'
+    run_command(cmd)
+    print('Done')
 
 
 def main():
