@@ -35,7 +35,9 @@ class Gui():
     key_btn_topic_summary = '-topic_summary-'
     key_btn_copy = '-copy-'
     key_combo_target_trace_data = '-target_trace_data-'
+    key_btn_upload = '-upload-'
     key_btn_remove = '-remove-'
+    key_btn_remove_copy = '-remove_copy-'
     key_cb_copy_today = '-copy_today-'
     key_input_copy_dir = '-copy_dir-'
     key_text_output = '-output-'
@@ -77,14 +79,18 @@ class Gui():
                 [sg.Button('Copy to local', key=key_btn_copy),
                 sg.Checkbox("Only today's log", key=key_cb_copy_today, default=True),
                 sg.Input(Value.copy_dir, key=key_input_copy_dir, tooltip=tooltip_copy_dir, enable_events=True)],
-                [sg.Button('!!! Remove All Trace Data', key=key_btn_remove)],
+                [sg.Button('Upload', key=key_btn_upload)],
+                [sg.HSep()],
+                [sg.Text('Danger')],
+                [sg.Button('!!! Remove all trace data', key=key_btn_remove),
+                sg.Button('!!! Remove all copied trace data', key=key_btn_remove_copy)],
                 [sg.HSep()],
                 [sg.Text('Executing Command...', key=key_text_executing_cmd, visible=False)],
                 [sg.Multiline(size=(60,15), key=key_text_output, expand_x=True, expand_y=True, write_only=True,
                             reroute_stdout=True, reroute_stderr=True, echo_stdout_stderr=True, autoscroll=True,  auto_refresh=True)],
             ]
 
-    window = sg.Window('CARET Record', layout, resizable=True, finalize=True)
+    window = sg.Window('CARET Recorder', layout, resizable=True, finalize=True)
 
     @classmethod
     def get_value(cls, key: str):
@@ -230,6 +236,7 @@ def caret_record_ssh(no_wait=False):
     Gui.update_record_components('starting')
     sess = get_connection()
     if sess is None:
+        Gui.update_record_components('not recording')
         return False
 
     try:
@@ -270,7 +277,7 @@ def caret_record_ssh(no_wait=False):
 def run_command_ssh(cmd: str):
     sess = get_connection()
     if sess is None:
-        return False
+        return ''
     sess.sendline(cmd)
     sess.prompt()
     res = sess.before.decode()
@@ -319,7 +326,8 @@ def reset():
         print('canceled')
         return
     cmd = 'ps aux | grep -e lttng -e "ros2 caret record" | grep -v grep | grep -v root | awk \'{ print "kill -9", $2 }\' | sh'
-    run_command(cmd)
+    if run_command(cmd) == '':
+        return
     cmd = 'rm -rf ~/.lttng'
     run_command(cmd)
     if caret_record(True):
@@ -402,8 +410,11 @@ def copy_to_local():
         option = '-newermt `date "+%Y-%m-%d"` ! -newermt `date "+%Y-%m-%d"`" 23:59:59.9999"'
     cmd = f'cd {Value.trace_data_dir} &&' + \
         f'find ./ -maxdepth 1 -mindepth 1 -type d {option} | xargs -I[] tar czvf [].tgz []'
-    run_command(cmd)
+    if run_command(cmd) == '':
+        return
     file_list = run_command(f'find {Value.trace_data_dir} -maxdepth 1 -mindepth 1 {option} -name "*.tgz"')
+    if file_list == '':
+        return
     file_list = file_list.splitlines()
 
     if Value.is_local:
@@ -422,12 +433,25 @@ def copy_to_local():
     print('Done')
 
 
+def upload():
+    sg.Popup('Not yet implemented')
+
+
 def remove_trace_data():
     if sg.PopupYesNo('Do you really want to remove all trace data?') != 'Yes':
         print('canceled')
         return
     cmd = f'rm -rf {Value.trace_data_dir}/*'
     run_command(cmd)
+    print('Done')
+
+
+def remove_copied_trace_data():
+    if sg.PopupYesNo('Do you really want to remove all copied trace data?') != 'Yes':
+        print('canceled')
+        return
+    cmd = f'rm -rf {Value.copy_dir}/*'
+    run_command_local(cmd)
     print('Done')
 
 
@@ -459,8 +483,13 @@ def main():
             topic_summary()
         elif event == Gui.key_btn_copy:
             copy_to_local()
+        elif event == Gui.key_btn_upload:
+            upload()
         elif event == Gui.key_btn_remove:
             remove_trace_data()
+        elif event == Gui.key_btn_remove_copy:
+            remove_copied_trace_data()
+
 
         Value.is_local = values[Gui.key_cb_local]
         Value.autoware_ecu_ip = values[Gui.key_input_ip]
