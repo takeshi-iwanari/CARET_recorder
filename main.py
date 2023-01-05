@@ -7,12 +7,13 @@ import PySimpleGUI as sg
 
 
 class Value():
+    is_local = True
     autoware_ecu_ip = '192.168.1.1'
-    trace_data_dir = '~/.ros/tracing'
-    caret_dir = '~/ros2_caret_ws'
-    copy_dir = '~/computing_ws/tracing'
     user = 'my_user'
     password = 'my_password'
+    caret_dir = '~/ros2_caret_ws'
+    trace_data_dir = '~/.ros/tracing'
+    copy_dir = '~/computing_ws/tracing'
 
 
 class Gui():
@@ -40,23 +41,23 @@ class Gui():
 
     tooltip_reset = 'Click if recording can\'t be started or trace data file size is too small'
     tooltip_check_ctf = 'Check if "Tracer discarded" warning doesn\'t exist'
-    tooltip_trace_data_dir = 'trace data file to be checked'
+    tooltip_trace_data_dir = 'trace data to be checked'
     tooltip_copy_dir = 'destination directory in local PC'
 
     sg.theme('dark')
     layout = [
                 [sg.Text('Connection'),
-                sg.Checkbox('Local', key=key_cb_local, enable_events=True, default=True)],
+                sg.Checkbox('Local', key=key_cb_local, default=Value.is_local, enable_events=True)],
                 [sg.Text('IP Address: '),
-                sg.Input(Value.autoware_ecu_ip, key=key_input_ip, s=20)],
+                sg.Input(Value.autoware_ecu_ip, key=key_input_ip, s=20, enable_events=True)],
                 [sg.Text('User: '),
-                sg.Input(Value.user, key=key_input_user, s=12),
+                sg.Input(Value.user, key=key_input_user, s=12, enable_events=True),
                 sg.Text('   Password: '),
-                sg.Input(Value.password, key=key_input_password, s=12)],
+                sg.Input(Value.password, key=key_input_password, password_char='*', s=12, enable_events=True)],
                 [sg.Button('Test Connection', key=key_btn_test),
                 sg.Text('', key=key_text_test)],
                 [sg.HSep()],
-                [sg.Text('CARET Dir: '), sg.Input(Value.caret_dir, key=key_input_caret_dir)],
+                [sg.Text('CARET Dir: '), sg.Input(Value.caret_dir, key=key_input_caret_dir, enable_events=True)],
                 [sg.Text('Record')],
                 [sg.Button('Start Recording', key=key_btn_record),
                 sg.Text('REC (please stop recording before closing this app)', key=key_text_record, text_color='RED', visible=False)],
@@ -65,7 +66,7 @@ class Gui():
                 [sg.Text('Check')],
                 [sg.Button('list', key=key_btn_list)],
                 [sg.Button('check_ctf (?)', key=key_btn_check_ctf, tooltip=tooltip_check_ctf),
-                sg.Input('', key=key_input_trace_data_dir, tooltip=tooltip_trace_data_dir)],
+                sg.Input('', key=key_input_trace_data_dir, tooltip=tooltip_trace_data_dir, enable_events=True)],
                 [sg.Button('trace_point_summary', key=key_btn_trace_point_summary),
                 sg.Button('node_summary', key=key_btn_node_summary),
                 sg.Button('topic_summary', key=key_btn_topic_summary)],
@@ -73,11 +74,11 @@ class Gui():
                 [sg.Text('Trace Data File')],
                 [sg.Button('Copy to local', key=key_btn_copy),
                 sg.Checkbox("Only today's log", key=key_cb_copy_today, default=True),
-                sg.Input(Value.copy_dir, key=key_input_copy_dir, tooltip=tooltip_copy_dir)],
+                sg.Input(Value.copy_dir, key=key_input_copy_dir, tooltip=tooltip_copy_dir, enable_events=True)],
                 [sg.Button('Remove All Trace Data', key=key_btn_remove)],
                 [sg.HSep()],
                 [sg.Multiline(size=(60,15), key=key_text_output, expand_x=True, expand_y=True, write_only=True,
-                              reroute_stdout=True, reroute_stderr=True, echo_stdout_stderr=True, autoscroll=True,  auto_refresh=True)],
+                            reroute_stdout=True, reroute_stderr=True, echo_stdout_stderr=True, autoscroll=True,  auto_refresh=True)],
             ]
 
     window = sg.Window('CARET Record', layout, resizable=True, finalize=True)
@@ -137,12 +138,13 @@ def run_command(cmd: str):
         if buf == '':
             break
         text += buf
-        Gui.output_text(text)
+        # Gui.output_text(text)
+        print(buf.strip())
     return text
 
 
 def caret_record(no_wait=False):
-    caret_dir = Gui.get_value(Gui.key_input_caret_dir)
+    caret_dir = Value.caret_dir
     cmd = f'source /opt/ros/humble/setup.bash &&' + \
         f'source {caret_dir}/install/local_setup.bash &&' + \
         f'ros2 caret record -v'
@@ -150,7 +152,17 @@ def caret_record(no_wait=False):
     child = pexpect.spawn('/bin/bash', ['-c', cmd], logfile=sys.stdout, encoding='utf-8')
     time.sleep(0.1)
     child.sendline('')
-    child.expect('press enter to stop')
+    try:
+        child.expect('press enter to stop')
+    except:
+        msg = f'Error: Please check if CARET is installed in {caret_dir}'
+        if not Value.is_local:
+            msg = msg + ' in ' + Value.autoware_ecu_ip
+        print(msg)
+        sg.popup(msg)
+        child.close()
+        Gui.update_record_components('not recording')
+        return False
     Gui.update_record_components('recording')
     while True:
         time.sleep(0.1)
@@ -162,9 +174,10 @@ def caret_record(no_wait=False):
             Gui.update_record_components('stoping')
             child.sendline('')
             child.expect('destroying tracing session')
+            child.close()
             Gui.update_record_components('not recording')
             break
-
+    return True
 
 def test_connection():
     print('test_connection() is not yet implemented')
@@ -175,25 +188,33 @@ def record():
     print('Done')
 
 
+def get_latest_trace_data_path():
+    cmd = f'cd {Value.trace_data_dir} && ls -rtd ./* | tail -n 1'
+    latest_file = run_command(cmd)
+    if latest_file != '':
+        latest_file = Value.trace_data_dir + '/' + latest_file.strip()
+    return latest_file
+
+
 def reset():
     if sg.PopupYesNo('Do you really want to reset LTTng session?') == 'Yes':
         cmd = 'ps aux | grep -e lttng -e "ros2 caret record" | grep -v grep | awk \'{ print "kill -9", $2 }\' | sh'
         run_command(cmd)
         cmd = 'rm -rf ~/.lttng'
         run_command(cmd)
-        caret_record(True)
+        if caret_record(True):
+            latest_file = get_latest_trace_data_path()
+            cmd = f'rm -rf {latest_file}'
+            run_command(cmd)
         print('Done')
     else:
         print('Canceled')
 
 
 def trace_data_list():
-    Gui.output_text('')
-    cmd = f'cd {Value.trace_data_dir} && ls -rtd ./* | tail -n 1'
-    latest_file = run_command(cmd)
-    if latest_file != '':
-        latest_file = Value.trace_data_dir + '/' + latest_file
+    latest_file = get_latest_trace_data_path()
     Gui.update_value(Gui.key_input_trace_data_dir, latest_file)
+    Gui.output_text('')
     cmd = f'du -sh {Value.trace_data_dir}/*'
     run_command(cmd)
 
@@ -277,6 +298,13 @@ def main():
             copy_to_local()
         elif event == Gui.key_btn_remove:
             remove_trace_data()
+
+        Value.is_local = values[Gui.key_cb_local]
+        Value.autoware_ecu_ip = values[Gui.key_input_ip]
+        Value.user = values[Gui.key_input_user]
+        Value.password = values[Gui.key_input_password]
+        Value.caret_dir = values[Gui.key_input_caret_dir]
+        Value.copy_dir = values[Gui.key_input_copy_dir]
 
     Gui.window.close()
     exit(0)
