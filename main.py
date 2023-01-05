@@ -33,7 +33,7 @@ class Gui():
     key_btn_node_summary = '-node_summary-'
     key_btn_topic_summary = '-topic_summary-'
     key_btn_copy = '-copy-'
-    key_input_trace_data_dir = '-trace_data_dir-'
+    key_combo_target_trace_data = '-target_trace_data-'
     key_btn_remove = '-remove-'
     key_cb_copy_today = '-copy_today-'
     key_input_copy_dir = '-copy_dir-'
@@ -64,14 +64,14 @@ class Gui():
                 [sg.Button('!!! Reset (?)', key=key_btn_reset, tooltip=tooltip_reset)],
                 [sg.HSep()],
                 [sg.Text('Check')],
-                [sg.Button('list', key=key_btn_list)],
-                [sg.Button('check_ctf (?)', key=key_btn_check_ctf, tooltip=tooltip_check_ctf),
-                sg.Input('', key=key_input_trace_data_dir, tooltip=tooltip_trace_data_dir, enable_events=True)],
+                [sg.Button('Trace data list', key=key_btn_list)],
+                [sg.Combo([], s=(70,1), enable_events=True, readonly=True, key=key_combo_target_trace_data)],
+                [sg.Button('check_ctf (?)', key=key_btn_check_ctf, tooltip=tooltip_check_ctf)],
                 [sg.Button('trace_point_summary', key=key_btn_trace_point_summary),
                 sg.Button('node_summary', key=key_btn_node_summary),
                 sg.Button('topic_summary', key=key_btn_topic_summary)],
                 [sg.HSep()],
-                [sg.Text('Trace Data File')],
+                [sg.Text('Trace data file')],
                 [sg.Button('Copy to local', key=key_btn_copy),
                 sg.Checkbox("Only today's log", key=key_cb_copy_today, default=True),
                 sg.Input(Value.copy_dir, key=key_input_copy_dir, tooltip=tooltip_copy_dir, enable_events=True)],
@@ -187,12 +187,14 @@ def record():
     print('Done')
 
 
-def get_latest_trace_data_path():
-    cmd = f'cd {Value.trace_data_dir} && ls -rtd1 */ | tail -n 1'
-    latest_file = run_command(cmd)
-    if latest_file != '':
-        latest_file = Value.trace_data_dir + '/' + latest_file.strip()
-    return latest_file
+def get_trace_data_list():
+    cmd = f'find {Value.trace_data_dir} -mindepth 1 -maxdepth 1 -type d | xargs ls -rt1d'
+    trace_data_list = run_command(cmd)
+    if len(trace_data_list) < 3:
+        trace_data_list = []
+    else:
+        trace_data_list = trace_data_list.split()
+    return trace_data_list
 
 
 def reset():
@@ -204,18 +206,22 @@ def reset():
     cmd = 'rm -rf ~/.lttng'
     run_command(cmd)
     if caret_record(True):
-        latest_file = get_latest_trace_data_path()
-        cmd = f'rm -rf {latest_file}'
-        run_command(cmd)
+        trace_data_list = get_trace_data_list()
+        if len(trace_data_list) > 0:
+            latest_file = trace_data_list[-1]
+            cmd = f'rm -rf {latest_file}'
+            run_command(cmd)
     print('Done')
 
 
 def trace_data_list():
-    latest_file = get_latest_trace_data_path()
-    Gui.update_value(Gui.key_input_trace_data_dir, latest_file)
+    trace_data_list = get_trace_data_list()
+    Gui.window[Gui.key_combo_target_trace_data].update(values=trace_data_list, value=trace_data_list[-1] if len(trace_data_list) > 0 else '')
+
     Gui.output_text('')
-    cmd = f'cd {Value.trace_data_dir} && ls -rt1d */ | xargs du -sh'
-    run_command(cmd)
+    for trace_data in trace_data_list:
+        cmd = f'du -sh {trace_data}'
+        run_command(cmd)
 
 
 def check_ctf():
@@ -224,7 +230,7 @@ def check_ctf():
         return
     cmd = f'source /opt/ros/humble/setup.bash &&' + \
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
-        f'ros2 caret check_ctf -d {Gui.get_value(Gui.key_input_trace_data_dir)}'
+        f'ros2 caret check_ctf -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     run_command(cmd)
 
 
@@ -234,7 +240,7 @@ def trace_point_summary():
         return
     cmd = f'source /opt/ros/humble/setup.bash &&' + \
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
-        f'ros2 caret trace_point_summary -d {Gui.get_value(Gui.key_input_trace_data_dir)}'
+        f'ros2 caret trace_point_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     run_command(cmd)
 
 
@@ -244,7 +250,7 @@ def node_summary():
         return
     cmd = f'source /opt/ros/humble/setup.bash &&' + \
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
-        f'ros2 caret node_summary -d {Gui.get_value(Gui.key_input_trace_data_dir)}'
+        f'ros2 caret node_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     run_command(cmd)
 
 
@@ -254,7 +260,7 @@ def topic_summary():
         return
     cmd = f'source /opt/ros/humble/setup.bash &&' + \
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
-        f'ros2 caret topic_summary -d {Gui.get_value(Gui.key_input_trace_data_dir)}'
+        f'ros2 caret topic_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     run_command(cmd)
 
 
