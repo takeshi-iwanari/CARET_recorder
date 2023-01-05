@@ -201,7 +201,7 @@ def reset():
     if sg.PopupYesNo('Do you really want to reset LTTng session?') != 'Yes':
         print('canceled')
         return
-    cmd = 'ps aux | grep -e lttng -e "ros2 caret record" | grep -v grep | awk \'{ print "kill -9", $2 }\' | sh'
+    cmd = 'ps aux | grep -e lttng -e "ros2 caret record" | grep -v grep | grep -v root | awk \'{ print "kill -9", $2 }\' | sh'
     run_command(cmd)
     cmd = 'rm -rf ~/.lttng'
     run_command(cmd)
