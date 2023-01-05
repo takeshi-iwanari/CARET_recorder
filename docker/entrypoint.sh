@@ -20,11 +20,11 @@ sudo sh -c "echo $USER_NAME:$USER_NAME | chpasswd"
 # Add user and group: end
 
 # Add to .bashrc for VSCode
-{
-    echo "source /opt/ros/humble/setup.bash"
-    echo "source /ros2_caret_ws/install/local_setup.bash"
-    echo "source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash"
-} >>"$HOME"/.bashrc
+# {
+#     echo "source /opt/ros/humble/setup.bash"
+#     echo "source /ros2_caret_ws/install/local_setup.bash"
+#     echo "source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash"
+# } >>"$HOME"/.bashrc
 
 sudo ssh-keygen -A
 sudo /usr/sbin/sshd
