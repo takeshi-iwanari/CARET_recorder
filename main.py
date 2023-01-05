@@ -38,6 +38,12 @@ class Gui():
     key_input_copy_dir = '-copy_dir-'
     key_text_output = '-output-'
 
+    tooltip_reset = 'Click if recording can\'t be started or trace data file size is too small'
+    tooltip_check_ctf = 'Check if "Tracer discarded" warning doesn\'t exist'
+    tooltip_trace_data_dir = 'trace data file to be checked'
+    tooltip_copy_dir = 'destination directory in local PC'
+
+    sg.theme('dark')
     layout = [
                 [sg.Text('Connection'),
                 sg.Checkbox('Local', key=key_cb_local, enable_events=True, default=True)],
@@ -54,12 +60,12 @@ class Gui():
                 [sg.Text('Record')],
                 [sg.Button('Start Recording', key=key_btn_record),
                 sg.Text('REC (please stop recording before closing this app)', key=key_text_record, text_color='RED', visible=False)],
-                [sg.Button('Reset', key=key_btn_reset)],
+                [sg.Button('Reset (?)', key=key_btn_reset, tooltip=tooltip_reset)],
                 [sg.HSep()],
                 [sg.Text('Check')],
                 [sg.Button('list', key=key_btn_list)],
-                [sg.Button('check_ctf', key=key_btn_check_ctf),
-                sg.Input('', key=key_input_trace_data_dir)],
+                [sg.Button('check_ctf (?)', key=key_btn_check_ctf, tooltip=tooltip_check_ctf),
+                sg.Input('', key=key_input_trace_data_dir, tooltip=tooltip_trace_data_dir)],
                 [sg.Button('trace_point_summary', key=key_btn_trace_point_summary),
                 sg.Button('node_summary', key=key_btn_node_summary),
                 sg.Button('topic_summary', key=key_btn_topic_summary)],
@@ -67,7 +73,7 @@ class Gui():
                 [sg.Text('Trace Data File')],
                 [sg.Button('Copy to local', key=key_btn_copy),
                 sg.Checkbox("Only today's log", key=key_cb_copy_today, default=True),
-                sg.Input(Value.copy_dir, key=key_input_copy_dir)],
+                sg.Input(Value.copy_dir, key=key_input_copy_dir, tooltip=tooltip_copy_dir)],
                 [sg.Button('Remove All Trace Data', key=key_btn_remove)],
                 [sg.HSep()],
                 [sg.Multiline(size=(60,15), key=key_text_output, expand_x=True, expand_y=True, write_only=True,
@@ -101,6 +107,9 @@ class Gui():
         if status == 'starting':
             cls.window[cls.key_btn_record].update('Starting')
             cls.window[cls.key_text_record].update('Please wait until recording is started', visible=True)
+            for elem in cls.window.element_list():
+                if elem.Type == sg.ELEM_TYPE_BUTTON and elem != cls.window[cls.key_btn_record]:
+                    elem.update(disabled=True)
         elif status == 'recording':
             cls.window[cls.key_btn_record].update('Stop Recording')
             cls.window[cls.key_text_record].update('REC (please stop recording before closing this app)', visible=True)
@@ -109,6 +118,10 @@ class Gui():
         elif status == 'not recording':
             cls.window[cls.key_btn_record].update('Start Recording')
             cls.window[cls.key_text_record].update(visible=False)
+            for elem in cls.window.element_list():
+                if elem.Type == sg.ELEM_TYPE_BUTTON and elem != cls.window[cls.key_btn_record]:
+                    elem.update(disabled=False)
+            cls.update_connection_components()
         else:
             print(f'coding error !!!! {status}')
 
@@ -153,19 +166,25 @@ def caret_record(no_wait=False):
             break
 
 
+def test_connection():
+    print('test_connection() is not yet implemented')
+
+
 def record():
     caret_record()
     print('Done')
 
 
 def reset():
-    # todo: msg box to ask are you sure?
-    cmd = 'ps aux | grep -e lttng -e "ros2 caret record" | grep -v grep | awk \'{ print "kill -9", $2 }\' | sh'
-    run_command(cmd)
-    cmd = 'rm -rf ~/.lttng'
-    run_command(cmd)
-    caret_record(True)
-    print('Done')
+    if sg.PopupYesNo('Do you really want to reset LTTng session?') == 'Yes':
+        cmd = 'ps aux | grep -e lttng -e "ros2 caret record" | grep -v grep | awk \'{ print "kill -9", $2 }\' | sh'
+        run_command(cmd)
+        cmd = 'rm -rf ~/.lttng'
+        run_command(cmd)
+        caret_record(True)
+        print('Done')
+    else:
+        print('Canceled')
 
 
 def trace_data_list():
@@ -179,19 +198,53 @@ def trace_data_list():
     run_command(cmd)
 
 
+def check_ctf():
+    if sg.PopupYesNo('Do you really want to run check_ctf? (It may take time)') == 'Yes':
+        print('check_ctf() is not yet implemented')
+    else:
+        print('canceled')
+
+
+def trace_point_summary():
+    if sg.PopupYesNo('Do you really want to run trace_point_summary? (It may take time)') == 'Yes':
+        print('trace_point_summary() is not yet implemented')
+    else:
+        print('canceled')
+
+
+def node_summary():
+    if sg.PopupYesNo('Do you really want to run node_summary? (It may take time)') == 'Yes':
+        print('node_summary() is not yet implemented')
+    else:
+        print('canceled')
+
+
+def topic_summary():
+    if sg.PopupYesNo('Do you really want to run topic_summary? (It may take time)') == 'Yes':
+        print('topic_summary() is not yet implemented')
+    else:
+        print('canceled')
+
+
 def copy_to_local():
-    cmd = f'mkdir -p {Value.copy_dir} &&' + \
-        f'cd {Value.trace_data_dir} &&' + \
-        f'ls -d * | xargs -I[] tar czvf [].tgz [] &&' + \
-        f'mv *.tgz {Value.copy_dir}/.'
-    run_command(cmd)
-    print('Done')
+    if sg.PopupYesNo('Do you really want to copy trace data?') == 'Yes':
+        cmd = f'mkdir -p {Value.copy_dir} &&' + \
+            f'cd {Value.trace_data_dir} &&' + \
+            f'ls -d * | xargs -I[] tar czvf [].tgz [] &&' + \
+            f'mv *.tgz {Value.copy_dir}/.'
+        run_command(cmd)
+        print('Done')
+    else:
+        print('Canceled')
 
 
 def remove_trace_data():
-    cmd = f'rm -rf {Value.trace_data_dir}/*'
-    run_command(cmd)
-    print('Done')
+    if sg.PopupYesNo('Do you really want to remove all trace data?') == 'Yes':
+        cmd = f'rm -rf {Value.trace_data_dir}/*'
+        run_command(cmd)
+        print('Done')
+    else:
+        print('Canceled')
 
 
 def main():
@@ -204,12 +257,22 @@ def main():
             break
         elif event == Gui.key_cb_local:
             Gui.update_connection_components()
+        elif event == Gui.key_btn_test:
+            test_connection()
         elif event == Gui.key_btn_record:
             record()
         elif event == Gui.key_btn_reset:
             reset()
         elif event == Gui.key_btn_list:
             trace_data_list()
+        elif event == Gui.key_btn_check_ctf:
+            check_ctf()
+        elif event == Gui.key_btn_trace_point_summary:
+            trace_point_summary()
+        elif event == Gui.key_btn_node_summary:
+            node_summary()
+        elif event == Gui.key_btn_topic_summary:
+            topic_summary()
         elif event == Gui.key_btn_copy:
             copy_to_local()
         elif event == Gui.key_btn_remove:
