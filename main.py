@@ -131,7 +131,7 @@ def run_command(cmd: str):
     # proc = subprocess.run([cmd], executable='/bin/bash', shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     # Gui.output_text(proc.stdout)
     # return proc.stdout
-    proc = subprocess.Popen([cmd], executable='/bin/bash', shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen([cmd], executable='/bin/bash', shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     text = ''
     while True:
         buf = proc.stdout.readline()
@@ -144,9 +144,8 @@ def run_command(cmd: str):
 
 
 def caret_record(no_wait=False):
-    caret_dir = Value.caret_dir
     cmd = f'source /opt/ros/humble/setup.bash &&' + \
-        f'source {caret_dir}/install/local_setup.bash &&' + \
+        f'source {Value.caret_dir}/install/local_setup.bash &&' + \
         f'ros2 caret record -v'
     Gui.update_record_components('starting')
     child = pexpect.spawn('/bin/bash', ['-c', cmd], logfile=sys.stdout, encoding='utf-8')
@@ -155,7 +154,7 @@ def caret_record(no_wait=False):
     try:
         child.expect('press enter to stop')
     except:
-        msg = f'Error: Please check if CARET is installed in {caret_dir}'
+        msg = f'Error: Please check if CARET is installed in {Value.caret_dir}'
         if not Value.is_local:
             msg = msg + ' in ' + Value.autoware_ecu_ip
         print(msg)
@@ -189,7 +188,7 @@ def record():
 
 
 def get_latest_trace_data_path():
-    cmd = f'cd {Value.trace_data_dir} && ls -rtd ./* | tail -n 1'
+    cmd = f'cd {Value.trace_data_dir} && ls -rtd1 */ | tail -n 1'
     latest_file = run_command(cmd)
     if latest_file != '':
         latest_file = Value.trace_data_dir + '/' + latest_file.strip()
@@ -215,7 +214,7 @@ def trace_data_list():
     latest_file = get_latest_trace_data_path()
     Gui.update_value(Gui.key_input_trace_data_dir, latest_file)
     Gui.output_text('')
-    cmd = f'du -sh {Value.trace_data_dir}/*'
+    cmd = f'cd {Value.trace_data_dir} && ls -rt1d */ | xargs du -sh'
     run_command(cmd)
 
 
@@ -223,28 +222,40 @@ def check_ctf():
     if sg.PopupYesNo('Do you really want to run check_ctf? (It may take time)') != 'Yes':
         print('canceled')
         return
-    print('check_ctf() is not yet implemented')
+    cmd = f'source /opt/ros/humble/setup.bash &&' + \
+        f'source {Value.caret_dir}/install/local_setup.bash &&' + \
+        f'ros2 caret check_ctf -d {Gui.get_value(Gui.key_input_trace_data_dir)}'
+    run_command(cmd)
 
 
 def trace_point_summary():
     if sg.PopupYesNo('Do you really want to run trace_point_summary? (It may take time)') != 'Yes':
         print('canceled')
         return
-    print('trace_point_summary() is not yet implemented')
+    cmd = f'source /opt/ros/humble/setup.bash &&' + \
+        f'source {Value.caret_dir}/install/local_setup.bash &&' + \
+        f'ros2 caret trace_point_summary -d {Gui.get_value(Gui.key_input_trace_data_dir)}'
+    run_command(cmd)
 
 
 def node_summary():
     if sg.PopupYesNo('Do you really want to run node_summary? (It may take time)') != 'Yes':
         print('canceled')
         return
-    print('node_summary() is not yet implemented')
+    cmd = f'source /opt/ros/humble/setup.bash &&' + \
+        f'source {Value.caret_dir}/install/local_setup.bash &&' + \
+        f'ros2 caret node_summary -d {Gui.get_value(Gui.key_input_trace_data_dir)}'
+    run_command(cmd)
 
 
 def topic_summary():
     if sg.PopupYesNo('Do you really want to run topic_summary? (It may take time)') != 'Yes':
         print('canceled')
         return
-    print('topic_summary() is not yet implemented')
+    cmd = f'source /opt/ros/humble/setup.bash &&' + \
+        f'source {Value.caret_dir}/install/local_setup.bash &&' + \
+        f'ros2 caret topic_summary -d {Gui.get_value(Gui.key_input_trace_data_dir)}'
+    run_command(cmd)
 
 
 def copy_to_local():
