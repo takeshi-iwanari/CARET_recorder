@@ -1,4 +1,4 @@
-# PySimpleGUI_test
+# CARET Recorder
 
 ```sh
 pip3 install pysimplegui pexpect
@@ -15,4 +15,6 @@ docker run -it --rm \
 ssh autoware@127.0.0.1
 ```
 
-
+## todo
+- Read settingss from file if exists
+- Upload function
