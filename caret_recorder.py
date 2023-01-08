@@ -471,6 +471,7 @@ def copy_to_local():
     if Gui.get_value(Gui.key_cb_copy_today):
         option = '-newermt `date "+%Y-%m-%d"` ! -newermt `date "+%Y-%m-%d"`" 23:59:59.9999"'
     cmd = f'cd {Value.trace_data_dir} &&' + \
+        f'find -name caret_converted | xargs -I [] rm [] &&' + \
         f'find ./ -maxdepth 1 -mindepth 1 -type d {option} | xargs -I[] tar czvf [].tgz []'
     if run_command(cmd) == '':
         return
