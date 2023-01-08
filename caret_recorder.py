@@ -13,6 +13,8 @@ class Value():
     user = 'my_user'
     password = 'my_password'
     caret_dir = '~/ros2_caret_ws'
+    record_frequency = 10000
+    record_light = True,
     trace_data_dir = '~/.ros/tracing'
     copy_dir = '~/computing_ws/tracing'
 
@@ -27,6 +29,8 @@ class Gui():
     key_input_caret_dir = '-CARET dir-'
     key_btn_record = '-record-'
     key_text_record = '-record_text-'
+    key_input_freq = '-freq-'
+    key_cb_light = '-light-'
     key_btn_reset = '-reset-'
     key_btn_list = '-trace_data_list-'
     key_btn_check_ctf = '-check_ctf-'
@@ -62,9 +66,12 @@ class Gui():
                 sg.Text('', key=key_text_test)],
                 [sg.HSep()],
                 [sg.Text('CARET Dir: '), sg.Input(Value.caret_dir, key=key_input_caret_dir, enable_events=True)],
-                [sg.Text('Record')],
-                [sg.Button('Start Recording', key=key_btn_record),
+                [sg.Text('Record'),
                 sg.Text('REC (please stop recording before closing this app)', key=key_text_record, text_color='RED', visible=False)],
+                [sg.Button('Start Recording', key=key_btn_record),
+                sg.Text('record frequency:'),
+                sg.Input(Value.record_frequency, key=key_input_freq, s=8, enable_events=True),
+                sg.Checkbox('Light mode', key=key_cb_light, default=Value.record_light, enable_events=True)],
                 [sg.Button('!!! Reset (?)', key=key_btn_reset, tooltip=tooltip_reset)],
                 [sg.HSep()],
                 [sg.Text('Check')],
@@ -146,6 +153,15 @@ class Gui():
         cls.window.refresh()
 
 
+def get_record_cmd():
+    freq = str(Value.record_frequency)
+    if not str.isnumeric(freq):
+        freq = 10000
+    cmd = f'ros2 caret record -v -f {freq} {"--light" if Value.record_light else ""}'
+    print(cmd)
+    return cmd
+
+
 def run_command_local(cmd: str):
     # proc = subprocess.run([cmd], executable='/bin/bash', shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     # Gui.output_text(proc.stdout)
@@ -165,7 +181,7 @@ def run_command_local(cmd: str):
 def caret_record_local(no_wait=False):
     cmd = f'source /opt/ros/humble/setup.bash &&' + \
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
-        f'ros2 caret record -v'
+        get_record_cmd()
     Gui.update_record_components('starting')
     child = pexpect.spawn('/bin/bash', ['-c', cmd], logfile=sys.stdout, encoding='utf-8')
     time.sleep(0.1)
@@ -240,7 +256,7 @@ def caret_record_ssh(no_wait=False):
         return False
 
     try:
-        sess.sendline(f'ros2 caret record -v')
+        sess.sendline(get_record_cmd())
         sess.expect('press enter to start')
         print(sess.before.decode())
         print(sess.after.decode())
@@ -496,6 +512,8 @@ def main():
         Value.user = values[Gui.key_input_user]
         Value.password = values[Gui.key_input_password]
         Value.caret_dir = values[Gui.key_input_caret_dir]
+        Value.record_frequency = values[Gui.key_input_freq]
+        Value.record_light = values[Gui.key_cb_light]
         Value.copy_dir = values[Gui.key_input_copy_dir]
 
     Gui.window.close()
