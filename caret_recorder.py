@@ -264,7 +264,8 @@ def caret_record_ssh(no_wait=False):
 
     try:
         sess.sendline(get_record_cmd())
-        sess.expect('press enter to start')
+        if sess.expect(['press enter to start', 'error']) != 0:
+            raise Exception
         print(sess.before.decode())
         print(sess.after.decode())
         sess.sendline('')
@@ -272,6 +273,8 @@ def caret_record_ssh(no_wait=False):
         print(sess.before.decode())
         print(sess.after.decode())
     except:
+        print(sess.before.decode())
+        print(sess.after.decode())
         msg = f'Error: Please check if CARET is installed in {Value.caret_dir} in {Value.autoware_ecu_ip}'
         print(msg)
         sg.popup_error(msg)
@@ -389,7 +392,7 @@ def check_ctf():
     elif 'Failed to find trace point added by LD_PRELOAD' in ret:
         sg.popup_error('Hooked tracepoints were not found. LD_PRELOAD may be missed. Set LD_PRELOAD before running the application.')
     elif 'Tracer discarded' in ret:
-        sg.popup_error('Trace data lost occurred. Apply a trace filter, decrease the nubmer of "record frequency" and use light mode, also consider to increase size of ring-buffer.')
+        sg.popup_error('Trace data lost occurred. Apply a trace filter, decrease the nubmer of "record frequency" and use light mode, also consider to increase size of ring-buffer.\nAnother possible cause is the application was not built with CARET.')
     elif 'Duplicate parameter callback found' in ret:
         sg.popup('Duplicate parameter callback found. It\'s caused by the target application code.')
     elif 'Failed to identify subscription' in ret:

@@ -1,7 +1,7 @@
 # cspell:ignore geckodriver, xzvf, libdbus, dfsg
 FROM osrf/ros:humble-desktop
 
-ARG CARET_VERSION="v0.3.3"
+ARG CARET_VERSION="v0.4.1"
 
 # Add user and group: start
 ENV USER_NAME=autoware
