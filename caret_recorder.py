@@ -33,6 +33,7 @@ class Gui():
     key_cb_light = '-light-'
     key_btn_reset = '-reset-'
     key_btn_list = '-trace_data_list-'
+    key_btn_check_lost = '-check_lost-'
     key_btn_check_ctf = '-check_ctf-'
     key_btn_trace_point_summary = '-trace_point_summary-'
     key_btn_node_summary = '-node_summary-'
@@ -47,8 +48,12 @@ class Gui():
     key_text_output = '-output-'
     key_text_executing_cmd = '-executing_cmd-'
 
-    tooltip_reset = 'Click if recording can\'t be started or trace data file size is too small'
-    tooltip_check_ctf = 'Check if "Tracer discarded" warning doesn\'t exist'
+    tooltip_record = 'Please avoid start/stop recording while a target application is starting/stopping.'
+    tooltip_reset = 'Click in case recording can\'t be started or trace data file size is too small.'
+    tooltip_list = 'Click before checking.\nData size will be around 1M ~ 1.5M Byte / sec.\nIf data size is extremely small, click "Reset" and check settings.'
+    tooltip_check_lost = 'Check if "OK" popup appears. It checks "Tracer discarded" only.'
+    tooltip_check_ctf = 'Check if "OK" popup appears.'
+    tooltip_check_topic = 'Check if the number of "/tf, /clock" is small (e.g. ~100).\nIf not, apply CARET filter.'
     tooltip_trace_data_dir = 'trace data to be checked'
     tooltip_copy_dir = 'destination directory in local PC'
 
@@ -68,31 +73,33 @@ class Gui():
                 [sg.Text('CARET Dir: '), sg.Input(Value.caret_dir, key=key_input_caret_dir, enable_events=True)],
                 [sg.Text('Record'),
                 sg.Text('REC (please stop recording before closing this app)', key=key_text_record, text_color='RED', visible=False)],
-                [sg.Button('Start Recording', key=key_btn_record),
+                [sg.Button('Start Recording (?)', key=key_btn_record, tooltip=tooltip_record),
                 sg.Text('record frequency:'),
                 sg.Input(Value.record_frequency, key=key_input_freq, s=8, enable_events=True),
                 sg.Checkbox('Light mode', key=key_cb_light, default=Value.record_light, enable_events=True)],
                 [sg.Button('!!! Reset (?)', key=key_btn_reset, tooltip=tooltip_reset)],
                 [sg.HSep()],
                 [sg.Text('Check')],
-                [sg.Button('Trace data list', key=key_btn_list)],
-                [sg.Combo([], s=(70,1), enable_events=True, readonly=True, key=key_combo_target_trace_data)],
-                [sg.Button('check_ctf (?)', key=key_btn_check_ctf, tooltip=tooltip_check_ctf)],
-                [sg.Button('trace_point_summary', key=key_btn_trace_point_summary),
-                sg.Button('node_summary', key=key_btn_node_summary),
-                sg.Button('topic_summary', key=key_btn_topic_summary)],
+                [sg.Combo([], s=(60,1), enable_events=True, readonly=True, key=key_combo_target_trace_data)],
+                [sg.Button('Trace data list (?)', key=key_btn_list, tooltip=tooltip_list),
+                sg.Button('Check data lost (?)', key=key_btn_check_lost, tooltip=tooltip_check_lost)],
+                [sg.Text('Detailed checks (?)', tooltip='It will take time, so checking only for the first trial result will be enough.')],
+                [sg.Button('check_ctf (?)', key=key_btn_check_ctf, tooltip=tooltip_check_ctf),
+                sg.Button('trace_point', key=key_btn_trace_point_summary),
+                sg.Button('node_summar', key=key_btn_node_summary),
+                sg.Button('topic_summary (?)', key=key_btn_topic_summary, tooltip=tooltip_check_topic)],
                 [sg.HSep()],
                 [sg.Text('Trace data file')],
                 [sg.Button('Copy to local', key=key_btn_copy),
                 sg.Checkbox("Only today's log", key=key_cb_copy_today, default=True),
-                sg.Input(Value.copy_dir, key=key_input_copy_dir, tooltip=tooltip_copy_dir, enable_events=True)],
+                sg.Input(Value.copy_dir, key=key_input_copy_dir, s=30, tooltip=tooltip_copy_dir, enable_events=True)],
                 [sg.Button('Upload', key=key_btn_upload)],
                 [sg.HSep()],
                 [sg.Text('Danger')],
                 [sg.Button('!!! Remove all trace data', key=key_btn_remove),
                 sg.Button('!!! Remove all copied trace data', key=key_btn_remove_copy)],
                 [sg.HSep()],
-                [sg.Text('Executing Command...', key=key_text_executing_cmd, visible=False)],
+                [sg.Text('Executing Command...', key=key_text_executing_cmd, text_color='RED', visible=False)],
                 [sg.Multiline(size=(60,15), key=key_text_output, expand_x=True, expand_y=True, write_only=True,
                             reroute_stdout=True, reroute_stderr=True, echo_stdout_stderr=True, autoscroll=True,  auto_refresh=True)],
             ]
@@ -358,7 +365,7 @@ def reset():
 def trace_data_list():
     trace_data_list = get_trace_data_list()
     Gui.window[Gui.key_combo_target_trace_data].update(values=trace_data_list, value=trace_data_list[-1] if len(trace_data_list) > 0 else '')
-
+    trace_data_list = [trace_data + '/ust' for trace_data in trace_data_list]
     Gui.output_text('')
     if len(trace_data_list) > 0:
         cmd = 'du -sh ' + ' '.join(trace_data_list)
@@ -374,7 +381,43 @@ def check_ctf():
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
         f'ros2 caret check_ctf -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     Gui.output_text('')
-    run_command(cmd)
+    ret = run_command(cmd)
+    if 'FileNotFoundError' in ret or 'expected one argument' in ret:
+        sg.popup_error('Invalid filename')
+    elif 'Failed to find trace point added by caret-rclcpp' in ret:
+        sg.popup_error('CARET/rclcpp is not applied when you built a target application. Build the application with CARET.')
+    elif 'Failed to find trace point added by LD_PRELOAD' in ret:
+        sg.popup_error('Hooked tracepoints were not found. LD_PRELOAD may be missed. Set LD_PRELOAD before running the application.')
+    elif 'Tracer discarded' in ret:
+        sg.popup_error('Trace data lost occurred. Apply a trace filter, decrease the nubmer of "record frequency" and use light mode, also consider to increase size of ring-buffer.')
+    elif 'Duplicate parameter callback found' in ret:
+        sg.popup('Duplicate parameter callback found. It\'s caused by the target application code.')
+    elif 'Failed to identify subscription' in ret:
+        sg.popup('Failed to identify subscription. It\'s caused by the target application code.')
+    elif 'Duplicated node name' in ret:
+        sg.popup('Duplicated node name. It\'s caused by the target application code.')
+    elif 'Failed to load node' in ret:
+        sg.popup_error('Unknown error')
+    elif 'AssertionError' in ret:
+        sg.popup_error('Unknown error')
+    else:
+        sg.popup('OK')
+    print('Done')
+
+
+def check_lost():
+    if Gui.get_value(Gui.key_combo_target_trace_data) == '':
+        ret = 'Cannot open any trace for reading'
+    else:
+        cmd = f'babeltrace {Gui.get_value(Gui.key_combo_target_trace_data)} | wc -l'
+        ret = run_command(cmd)
+
+    if 'Cannot open any trace for reading' in ret:
+        sg.popup_error('Invalid filename')
+    elif 'Tracer discarded' in ret:
+        sg.popup_error('Trace data lost occurred. Apply a trace filter, decrease the nubmer of "record frequency" and use light mode, also consider to increase size of ring-buffer.')
+    else:
+        sg.popup('OK')
     print('Done')
 
 
@@ -410,7 +453,10 @@ def topic_summary():
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
         f'ros2 caret topic_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     Gui.output_text('')
-    run_command(cmd)
+    ret = run_command(cmd)
+    ret = [line.replace(' ', '') for line in ret.splitlines() if '/clock' in line or '/tf' in line]
+    sg.popup(ret)
+
     print('Done')
 
 
@@ -491,6 +537,8 @@ def main():
             trace_data_list()
         elif event == Gui.key_btn_check_ctf:
             check_ctf()
+        elif event == Gui.key_btn_check_lost:
+            check_lost()
         elif event == Gui.key_btn_trace_point_summary:
             trace_point_summary()
         elif event == Gui.key_btn_node_summary:
