@@ -91,7 +91,7 @@ class Gui():
                 [sg.Text('Detailed checks (?)', tooltip='It will take time, so checking only for the first trial result will be enough.')],
                 [sg.Button('check_ctf (?)', key=key_btn_check_ctf, tooltip=tooltip_check_ctf),
                 sg.Button('trace_point', key=key_btn_trace_point_summary),
-                sg.Button('node_summar', key=key_btn_node_summary),
+                sg.Button('node_summary', key=key_btn_node_summary),
                 sg.Button('topic_summary (?)', key=key_btn_topic_summary, tooltip=tooltip_check_topic)],
                 [sg.HSep()],
                 [sg.Text('Trace data file')],
@@ -511,7 +511,10 @@ def copy_to_local():
         file_list = ','.join(file_list)
         copy_dir = run_command_local(f'realpath {Value.copy_dir}').strip()
         Gui.update_executing_command(True)
-        scp = pexpect.spawn(f'scp {Value.user}@{Value.autoware_ecu_ip}:\{{{file_list}\}} {copy_dir}/.')
+        if ',' in file_list:
+            scp = pexpect.spawn(f'scp {Value.user}@{Value.autoware_ecu_ip}:\{{{file_list}\}} {copy_dir}/.')
+        else:
+            scp = pexpect.spawn(f'scp {Value.user}@{Value.autoware_ecu_ip}:{file_list} {copy_dir}/.')
         scp.expect('.ssword:*')
         scp.sendline(Value.password)
         scp.interact()
