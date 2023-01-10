@@ -12,6 +12,7 @@ class Value():
     autoware_ecu_ip = '192.168.1.1'
     user = 'my_user'
     password = 'my_password'
+    timeout_check = 600
     caret_dir = '~/ros2_caret_ws'
     app_dir = '~/autoware'
     record_frequency = 10000
@@ -25,6 +26,7 @@ class Gui():
     key_input_ip = '-IP Address-'
     key_input_user = '-user-'
     key_input_password = '-password-'
+    key_input_timeout_check = '-timeout_check-'
     key_btn_test = '-test-'
     key_text_test = '-test_text-'
     key_input_caret_dir = '-CARET dir-'
@@ -64,12 +66,14 @@ class Gui():
     layout = [
                 [sg.Text('Connection'),
                 sg.Checkbox('Local', key=key_cb_local, default=Value.is_local, enable_events=True)],
-                [sg.Text('IP Address: '),
+                [sg.Text('IP Address:'),
                 sg.Input(Value.autoware_ecu_ip, key=key_input_ip, s=20, enable_events=True)],
-                [sg.Text('User: '),
+                [sg.Text('User:'),
                 sg.Input(Value.user, key=key_input_user, s=12, enable_events=True),
-                sg.Text('   Password: '),
+                sg.Text('   Password:'),
                 sg.Input(Value.password, key=key_input_password, password_char='*', s=12, enable_events=True)],
+                [sg.Text('Timeout for check command:'),
+                sg.Input(Value.timeout_check, key=key_input_timeout_check, s=12, enable_events=True)],
                 [sg.Button('Test Connection', key=key_btn_test),
                 sg.Text('', key=key_text_test)],
                 [sg.HSep()],
@@ -305,27 +309,31 @@ def caret_record_ssh(no_wait=False):
     return True
 
 
-def run_command_ssh(cmd: str):
+def run_command_ssh(cmd: str, timeout=30):
     sess = get_connection()
     if sess is None:
         return ''
     sess.sendline(cmd)
-    sess.prompt()
-    res = sess.before.decode()
-    res = res.splitlines()
-    res = res[1:]    # ignore the first because it's the cmd
-    res = [line for line in res if '\x1b' not in line]    # ignore escape sequence
-    res = '\n'.join(res)
-    print(res)
-    return res
+    ret = sess.prompt(timeout=timeout)
+    if ret:
+        res = sess.before.decode()
+        res = res.splitlines()
+        res = res[1:]    # ignore the first because it's the cmd
+        res = [line for line in res if '\x1b' not in line]    # ignore escape sequence
+        res = '\n'.join(res)
+        print(res)
+        return res
+    else:
+        sg.popup_error('Timeout')
+        return ''
 
 
-def run_command(cmd: str):
+def run_command(cmd: str, timeout=30):
     Gui.update_executing_command(True)
     if Value.is_local:
         ret = run_command_local(cmd)
     else:
-        ret = run_command_ssh(cmd)
+        ret = run_command_ssh(cmd, timeout)
     Gui.update_executing_command(False)
     return ret
 
@@ -405,7 +413,7 @@ def check_ctf():
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
         f'ros2 caret check_ctf -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     Gui.output_text('')
-    ret = run_command(cmd)
+    ret = run_command(cmd, Value.timeout_check)
     if 'FileNotFoundError' in ret or 'expected one argument' in ret:
         sg.popup_error('Invalid filename')
     elif 'Failed to find trace point added by caret-rclcpp' in ret:
@@ -424,7 +432,7 @@ def check_ctf():
         sg.popup_error('Unknown error')
     elif 'AssertionError' in ret:
         sg.popup_error('Unknown error')
-    else:
+    elif ret != '':
         sg.popup('OK')
     print('Done')
 
@@ -434,13 +442,13 @@ def check_lost():
         ret = 'Cannot open any trace for reading'
     else:
         cmd = f'babeltrace {Gui.get_value(Gui.key_combo_target_trace_data)} | wc -l'
-        ret = run_command(cmd)
+        ret = run_command(cmd, Value.timeout_check)
 
     if 'Cannot open any trace for reading' in ret:
         sg.popup_error('Invalid filename')
     elif 'Tracer discarded' in ret:
         sg.popup_error('Trace data lost occurred. Apply a trace filter, decrease the nubmer of "record frequency" and use light mode, also consider to increase size of ring-buffer.')
-    else:
+    elif ret != '':
         sg.popup('OK')
     print('Done')
 
@@ -453,7 +461,7 @@ def trace_point_summary():
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
         f'ros2 caret trace_point_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     Gui.output_text('')
-    run_command(cmd)
+    run_command(cmd, Value.timeout_check)
     print('Done')
 
 
@@ -465,7 +473,7 @@ def node_summary():
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
         f'ros2 caret node_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     Gui.output_text('')
-    run_command(cmd)
+    run_command(cmd, Value.timeout_check)
     print('Done')
 
 
@@ -477,7 +485,7 @@ def topic_summary():
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
         f'ros2 caret topic_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     Gui.output_text('')
-    ret = run_command(cmd)
+    ret = run_command(cmd, Value.timeout_check)
     ret = [line.replace(' ', '') for line in ret.splitlines() if '/clock' in line or '/tf' in line]
     sg.popup(ret)
 
@@ -512,7 +520,7 @@ def copy_to_local():
         copy_dir = run_command_local(f'realpath {Value.copy_dir}').strip()
         Gui.update_executing_command(True)
         if ',' in file_list:
-            scp = pexpect.spawn(f'scp {Value.user}@{Value.autoware_ecu_ip}:\{{{file_list}\}} {copy_dir}/.')
+            scp = pexpect.spawn(f'scp {Value.user}@{Value.autoware_ecu_ip}:\{{{file_list}\}} {copy_dir}/.', timeout=10*60)
         else:
             scp = pexpect.spawn(f'scp {Value.user}@{Value.autoware_ecu_ip}:{file_list} {copy_dir}/.')
         scp.expect('.ssword:*')
@@ -584,11 +592,15 @@ def main():
         elif event == Gui.key_btn_remove_copy:
             remove_copied_trace_data()
 
-
         Value.is_local = values[Gui.key_cb_local]
         Value.autoware_ecu_ip = values[Gui.key_input_ip]
         Value.user = values[Gui.key_input_user]
         Value.password = values[Gui.key_input_password]
+        Value.timeout_check = values[Gui.key_input_timeout_check]
+        if str(Value.timeout_check).isnumeric():
+            Value.timeout_check = int(Value.timeout_check)
+        else:
+            Value.timeout_check = 30
         Value.caret_dir = values[Gui.key_input_caret_dir]
         Value.app_dir = values[Gui.key_input_app_dir]
         Value.record_frequency = values[Gui.key_input_freq]
