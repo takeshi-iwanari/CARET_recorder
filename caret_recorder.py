@@ -13,6 +13,7 @@ class Value():
     user = 'my_user'
     password = 'my_password'
     caret_dir = '~/ros2_caret_ws'
+    app_dir = '~/autoware'
     record_frequency = 10000
     record_light = True,
     trace_data_dir = '~/.ros/tracing'
@@ -27,6 +28,8 @@ class Gui():
     key_btn_test = '-test-'
     key_text_test = '-test_text-'
     key_input_caret_dir = '-CARET dir-'
+    key_input_app_dir = '-App dir-'
+    key_btn_check_build = '-check build-'
     key_btn_record = '-record-'
     key_text_record = '-record_text-'
     key_input_freq = '-freq-'
@@ -48,7 +51,7 @@ class Gui():
     key_text_output = '-output-'
     key_text_executing_cmd = '-executing_cmd-'
 
-    tooltip_record = 'Please avoid start/stop recording while a target application is starting/stopping.'
+    tooltip_record = 'Please avoid start/stop recording while a target application is starting/stopping. Please stop recording before re-launch a target application.'
     tooltip_reset = 'Click in case recording can\'t be started or trace data file size is too small.'
     tooltip_list = 'Click before checking.\nData size will be around 1M ~ 1.5M Byte / sec.\nIf data size is extremely small, click "Reset" and check settings.'
     tooltip_check_lost = 'Check if "OK" popup appears. It checks "Tracer discarded" only.'
@@ -71,9 +74,11 @@ class Gui():
                 sg.Text('', key=key_text_test)],
                 [sg.HSep()],
                 [sg.Text('CARET Dir: '), sg.Input(Value.caret_dir, key=key_input_caret_dir, enable_events=True)],
-                [sg.Text('Record'),
+                [sg.Text('App Dir: '), sg.Input(Value.app_dir, s=35, key=key_input_app_dir, enable_events=True),
+                sg.Button('Check build', key=key_btn_check_build)],
+                [sg.Text('Record (?)', tooltip=tooltip_record),
                 sg.Text('REC (please stop recording before closing this app)', key=key_text_record, text_color='RED', visible=False)],
-                [sg.Button('Start Recording (?)', key=key_btn_record, tooltip=tooltip_record),
+                [sg.Button('Start Recording (?)', key=key_btn_record),
                 sg.Text('record frequency:'),
                 sg.Input(Value.record_frequency, key=key_input_freq, s=8, enable_events=True),
                 sg.Checkbox('Light mode', key=key_cb_light, default=Value.record_light, enable_events=True)],
@@ -337,6 +342,22 @@ def record():
     print('Done')
 
 
+def check_build():
+    cmd = f'source /opt/ros/humble/setup.bash &&' + \
+        f'source {Value.caret_dir}/install/local_setup.bash &&' + \
+        f'ros2 caret check_caret_rclcpp -w {Value.app_dir}'
+    Gui.output_text('')
+    ret = run_command(cmd)
+    if 'directory not found' in ret:
+        sg.popup_error('Invalid "App Dir"')
+    elif 'All packages are built using caret-rclcpp' in ret:
+        sg.popup('All packages are built using caret-rclcpp')
+    elif 'The following packages have not been built using caret-rclcpp:' in ret:
+        sg.popup_error('Some packages have not been built using caret.\nIf many components(more than 10) are listed, you are using wrong workspace or you forgot enabling CARET when building.')
+    else:
+        sg.popup('Please check output text')
+
+
 def get_trace_data_list():
     cmd = f'find {Value.trace_data_dir} -mindepth 1 -maxdepth 1 -type d | xargs ls -rt1d'
     trace_data_list = run_command(cmd)
@@ -500,7 +521,7 @@ def copy_to_local():
 
 
 def upload():
-    sg.Popup('Not yet implemented')
+    sg.Popup(f'Not yet implemented.\nPlease manually upload files in {Value.copy_dir}.')
 
 
 def remove_trace_data():
@@ -533,6 +554,8 @@ def main():
             Gui.update_connection_components()
         elif event == Gui.key_btn_test:
             test_connection()
+        elif event == Gui.key_btn_check_build:
+            check_build()
         elif event == Gui.key_btn_record:
             record()
         elif event == Gui.key_btn_reset:
@@ -564,6 +587,7 @@ def main():
         Value.user = values[Gui.key_input_user]
         Value.password = values[Gui.key_input_password]
         Value.caret_dir = values[Gui.key_input_caret_dir]
+        Value.app_dir = values[Gui.key_input_app_dir]
         Value.record_frequency = values[Gui.key_input_freq]
         Value.record_light = values[Gui.key_cb_light]
         Value.copy_dir = values[Gui.key_input_copy_dir]
