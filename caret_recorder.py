@@ -416,6 +416,10 @@ def check_ctf():
         f'ros2 caret check_ctf -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     Gui.output_text('')
     ret = run_command(cmd, Value.timeout_check)
+
+    lines_failed_to_load_node = [line for line in ret.splitlines() if 'Failed to load node' in line]
+    lines_failed_to_load_node = [line for line in lines_failed_to_load_node if '/caret_trace' not in line]
+
     if 'FileNotFoundError' in ret or 'expected one argument' in ret:
         sg.popup_error('Invalid filename')
     elif 'Failed to find trace point added by caret-rclcpp' in ret:
@@ -424,14 +428,14 @@ def check_ctf():
         sg.popup_error('Hooked tracepoints were not found. LD_PRELOAD may be missed. Set LD_PRELOAD before running the application.')
     elif 'Tracer discarded' in ret:
         sg.popup_error('Trace data lost occurred. Apply a trace filter, decrease the nubmer of "record frequency" and use light mode, also consider to increase size of ring-buffer.\nAnother possible cause is the application was not built with CARET.')
+    elif len(lines_failed_to_load_node) > 0:
+        sg.popup_error('Failed to load node. It\'s caused by CARET restriction. Please restart Autoware.')
     elif 'Duplicate parameter callback found' in ret:
         sg.popup('Duplicate parameter callback found. It\'s caused by the target application code.')
     elif 'Failed to identify subscription' in ret:
         sg.popup('Failed to identify subscription. It\'s caused by the target application code.')
     elif 'Duplicated node name' in ret:
         sg.popup('Duplicated node name. It\'s caused by the target application code.')
-    elif 'Failed to load node' in ret:
-        sg.popup_error('Unknown error')
     elif 'AssertionError' in ret:
         sg.popup_error('Unknown error')
     elif ret != '':
