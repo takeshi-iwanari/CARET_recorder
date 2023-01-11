@@ -58,6 +58,8 @@ class Gui():
     tooltip_list = 'Click before checking.\nData size will be around 1M ~ 1.5M Byte / sec.\nIf data size is extremely small, click "Reset" and check settings.'
     tooltip_check_lost = 'Check if "OK" popup appears. It checks "Tracer discarded" only.'
     tooltip_check_ctf = 'Check if "OK" popup appears.'
+    tooltip_check_trace = 'Check if the number of "rclcpp_intra_publish" is huge (e.g. 100~).\nIf not, you are using wrong WS or failed some environment settings.'
+    tooltip_check_node = 'Check if the number of "ekf_localizer" is huge (e.g. 100~).\nIf not, you are using wrong WS or failed some environment settings.'
     tooltip_check_topic = 'Check if the number of "/tf, /clock" is small (e.g. ~100).\nIf not, apply CARET filter.'
     tooltip_trace_data_dir = 'trace data to be checked'
     tooltip_copy_dir = 'destination directory in local PC'
@@ -94,8 +96,8 @@ class Gui():
                 sg.Button('Check data lost (?)', key=key_btn_check_lost, tooltip=tooltip_check_lost)],
                 [sg.Text('Detailed checks (?)', tooltip='It will take time, so checking only for the first trial result will be enough.')],
                 [sg.Button('check_ctf (?)', key=key_btn_check_ctf, tooltip=tooltip_check_ctf),
-                sg.Button('trace_point', key=key_btn_trace_point_summary),
-                sg.Button('node_summary', key=key_btn_node_summary),
+                sg.Button('trace_point (?)', key=key_btn_trace_point_summary, tooltip=tooltip_check_trace),
+                sg.Button('node_summary (?)', key=key_btn_node_summary, tooltip=tooltip_check_node),
                 sg.Button('topic_summary (?)', key=key_btn_topic_summary, tooltip=tooltip_check_topic)],
                 [sg.HSep()],
                 [sg.Text('Trace data file')],
@@ -461,7 +463,9 @@ def trace_point_summary():
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
         f'ros2 caret trace_point_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     Gui.output_text('')
-    run_command(cmd, Value.timeout_check)
+    ret = run_command(cmd, Value.timeout_check)
+    ret = [line.replace(' ', '') for line in ret.splitlines() if 'ros2:rclcpp_intra_publish' in line]
+    sg.popup(ret)
     print('Done')
 
 
@@ -473,7 +477,9 @@ def node_summary():
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
         f'ros2 caret node_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     Gui.output_text('')
-    run_command(cmd, Value.timeout_check)
+    ret =run_command(cmd, Value.timeout_check)
+    ret = [line.replace(' ', '') for line in ret.splitlines() if 'ekf_localizer' in line]
+    sg.popup(ret)
     print('Done')
 
 
