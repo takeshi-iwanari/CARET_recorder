@@ -1,7 +1,7 @@
 # CARET Recorder
 
 ```sh
-pip3 install pysimplegui pexpect
+pip3 install -r requirements.txt
 python3 caret_recorder.py
 ```
 
