@@ -56,11 +56,6 @@ class Gui():
     tooltip_record = 'Please avoid start/stop recording while a target application is starting/stopping. Please stop recording before re-launch a target application.'
     tooltip_reset = 'Click in case recording can\'t be started or trace data file size is too small.'
     tooltip_list = 'Click before checking.\nData size will be around 1M ~ 1.5M Byte / sec.\nIf data size is extremely small, click "Reset" and check settings.'
-    tooltip_check_lost = 'Check if "OK" popup appears. It checks "Tracer discarded" only.'
-    tooltip_check_ctf = 'Check if "OK" popup appears.'
-    tooltip_check_trace = 'Check if the number of "rclcpp_intra_publish" is huge (e.g. 100~).\nIf not, you are using wrong WS or failed some environment settings.'
-    tooltip_check_node = 'Check if the number of "ekf_localizer" is huge (e.g. 100~).\nIf not, you are using wrong WS or failed some environment settings.'
-    tooltip_check_topic = 'Check if the number of "/tf, /clock" is small (e.g. ~100).\nIf not, apply CARET filter.'
     tooltip_trace_data_dir = 'trace data to be checked'
     tooltip_copy_dir = 'destination directory in local PC'
 
@@ -93,12 +88,12 @@ class Gui():
                 [sg.Text('Check')],
                 [sg.Combo([], s=(60,1), enable_events=True, readonly=True, key=key_combo_target_trace_data)],
                 [sg.Button('Trace data list (?)', key=key_btn_list, tooltip=tooltip_list),
-                sg.Button('Check data lost (?)', key=key_btn_check_lost, tooltip=tooltip_check_lost)],
+                sg.Button('Check data lost (?)', key=key_btn_check_lost)],
                 [sg.Text('Detailed checks (?)', tooltip='It will take time, so checking only for the first trial result will be enough.')],
-                [sg.Button('check_ctf (?)', key=key_btn_check_ctf, tooltip=tooltip_check_ctf),
-                sg.Button('trace_point (?)', key=key_btn_trace_point_summary, tooltip=tooltip_check_trace),
-                sg.Button('node_summary (?)', key=key_btn_node_summary, tooltip=tooltip_check_node),
-                sg.Button('topic_summary (?)', key=key_btn_topic_summary, tooltip=tooltip_check_topic)],
+                [sg.Button('check_ctf (?)', key=key_btn_check_ctf),
+                sg.Button('trace_point (?)', key=key_btn_trace_point_summary),
+                sg.Button('node_summary (?)', key=key_btn_node_summary),
+                sg.Button('topic_summary (?)', key=key_btn_topic_summary)],
                 [sg.HSep()],
                 [sg.Text('Trace data file')],
                 [sg.Button('Copy to local', key=key_btn_copy),
@@ -403,17 +398,78 @@ def trace_data_list():
     Gui.output_text('')
     if len(trace_data_list) > 0:
         cmd = 'du -sh ' + ' '.join(trace_data_list)
-        run_command(cmd)
+        ret = run_command(cmd)
+
+        if ret != '':
+            list = ret.splitlines()
+            latest = list[-1]
+            latest_size = latest.split()[0]
+            scale = 1
+            scale = 1000 if 'K' in latest_size else 1000000 if 'M' in latest_size else 1000000000 if 'G' in latest_size else 1
+            latest_size = latest_size.replace('K', '').replace('M', '').replace('G', '')
+            try:
+                latest_size = float(latest_size)
+            except:
+                latest_size = 0
+            latest_size = latest_size * scale
+            if latest_size == 0:
+                sg.popup_error('Please check output')
+            elif latest_size < 1000000:
+                sg.popup_error('Click "Reset". File size is too small')
+            else:
+                sg.popup('OK')
+    else:
+        sg.popup('No trace data found')
     print('Done')
 
 
+def check_lost():
+    filename = Gui.get_value(Gui.key_combo_target_trace_data)
+    if filename == '':
+        sg.popup_error('Click "Trace data list" before checking')
+        return
+
+    cmd = f'babeltrace {filename} | wc -l'
+    ret = run_command(cmd, Value.timeout_check)
+
+    if 'Cannot open any trace for reading' in ret:
+        sg.popup_error('Invalid filename')
+    elif 'Tracer discarded' in ret:
+        sg.popup_error('Confirm you applied caret_topic_filter.bash and "Light mode" is checked.\nDecrease the nubmer of "record frequency".')
+    elif ret != '':
+        sg.popup('OK')
+    print('Done')
+
+
+def get_number_from_summary(str, key, separator='|'):
+    if len(str) == 0:
+        return None
+    line = [line.replace(' ', '') for line in str.splitlines() if key in line]
+    if len(line) == 0:
+        return None
+    line = line[0].split(separator)
+    if len(line) < 2:
+        return None
+    num = line[1]
+    try:
+        num = int(num)
+    except:
+        return None
+    return num
+
+
+
 def check_ctf():
+    filename = Gui.get_value(Gui.key_combo_target_trace_data)
+    if filename == '':
+        sg.popup_error('Click "Trace data list" before checking')
+        return
     if sg.PopupYesNo('Do you really want to run check_ctf? (It may take time)') != 'Yes':
         print('canceled')
         return
     cmd = f'source /opt/ros/humble/setup.bash &&' + \
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
-        f'ros2 caret check_ctf -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
+        f'ros2 caret check_ctf -d {filename}'
     Gui.output_text('')
     ret = run_command(cmd, Value.timeout_check)
 
@@ -423,13 +479,13 @@ def check_ctf():
     if 'FileNotFoundError' in ret or 'expected one argument' in ret:
         sg.popup_error('Invalid filename')
     elif 'Failed to find trace point added by caret-rclcpp' in ret:
-        sg.popup_error('CARET/rclcpp is not applied when you built a target application. Build the application with CARET.')
+        sg.popup_error('Confirm you are using correct WS and the WS is built with CARET.')
     elif 'Failed to find trace point added by LD_PRELOAD' in ret:
-        sg.popup_error('Hooked tracepoints were not found. LD_PRELOAD may be missed. Set LD_PRELOAD before running the application.')
+        sg.popup_error('Confirm you applied "export LD_PRELOAD=...".')
     elif 'Tracer discarded' in ret:
-        sg.popup_error('Trace data lost occurred. Apply a trace filter, decrease the nubmer of "record frequency" and use light mode, also consider to increase size of ring-buffer.\nAnother possible cause is the application was not built with CARET.')
+        sg.popup_error('Confirm you applied caret_topic_filter.bash and "Light mode" is checked.\nDecrease the nubmer of "record frequency".')
     elif len(lines_failed_to_load_node) > 0:
-        sg.popup_error('Failed to load node. It\'s caused by CARET restriction. Please restart Autoware.')
+        sg.popup_error('Please restart Autoware.')
     elif 'Duplicate parameter callback found' in ret:
         sg.popup('Duplicate parameter callback found. It\'s caused by the target application code.')
     elif 'Failed to identify subscription' in ret:
@@ -443,51 +499,53 @@ def check_ctf():
     print('Done')
 
 
-def check_lost():
-    if Gui.get_value(Gui.key_combo_target_trace_data) == '':
-        ret = 'Cannot open any trace for reading'
-    else:
-        cmd = f'babeltrace {Gui.get_value(Gui.key_combo_target_trace_data)} | wc -l'
-        ret = run_command(cmd, Value.timeout_check)
-
-    if 'Cannot open any trace for reading' in ret:
-        sg.popup_error('Invalid filename')
-    elif 'Tracer discarded' in ret:
-        sg.popup_error('Trace data lost occurred. Apply a trace filter, decrease the nubmer of "record frequency" and use light mode, also consider to increase size of ring-buffer.')
-    elif ret != '':
-        sg.popup('OK')
-    print('Done')
-
-
 def trace_point_summary():
+    filename = Gui.get_value(Gui.key_combo_target_trace_data)
+    if filename == '':
+        sg.popup_error('Click "Trace data list" before checking')
+        return
     if sg.PopupYesNo('Do you really want to run trace_point_summary? (It may take time)') != 'Yes':
         print('canceled')
         return
     cmd = f'source /opt/ros/humble/setup.bash &&' + \
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
-        f'ros2 caret trace_point_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
+        f'ros2 caret trace_point_summary -d {filename}'
     Gui.output_text('')
     ret = run_command(cmd, Value.timeout_check)
-    ret = [line.replace(' ', '') for line in ret.splitlines() if 'ros2:rclcpp_intra_publish' in line]
-    sg.popup(ret)
+    num = get_number_from_summary(ret, 'ros2:rclcpp_intra_publish')
+    if num is None or num < 10:
+        sg.popup_error('Confirm you are using correct WS and the WS is built with CARET.')
+    else:
+        sg.popup('OK')
     print('Done')
 
 
 def node_summary():
+    filename = Gui.get_value(Gui.key_combo_target_trace_data)
+    if filename == '':
+        sg.popup_error('Click "Trace data list" before checking')
+        return
     if sg.PopupYesNo('Do you really want to run node_summary? (It may take time)') != 'Yes':
         print('canceled')
         return
     cmd = f'source /opt/ros/humble/setup.bash &&' + \
         f'source {Value.caret_dir}/install/local_setup.bash &&' + \
-        f'ros2 caret node_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
+        f'ros2 caret node_summary -d {filename}'
     Gui.output_text('')
     ret =run_command(cmd, Value.timeout_check)
-    ret = [line.replace(' ', '') for line in ret.splitlines() if 'ekf_localizer' in line]
-    sg.popup(ret)
+    num = get_number_from_summary(ret, 'ekf_localizer')
+    if num is None or num < 10:
+        sg.popup_error('Confirm you are using correct WS and the WS is built with CARET.')
+    else:
+        sg.popup('OK')
     print('Done')
 
 
 def topic_summary():
+    filename = Gui.get_value(Gui.key_combo_target_trace_data)
+    if filename == '':
+        sg.popup_error('Click "Trace data list" before checking')
+        return
     if sg.PopupYesNo('Do you really want to run topic_summary? (It may take time)') != 'Yes':
         print('canceled')
         return
@@ -496,9 +554,12 @@ def topic_summary():
         f'ros2 caret topic_summary -d {Gui.get_value(Gui.key_combo_target_trace_data)}'
     Gui.output_text('')
     ret = run_command(cmd, Value.timeout_check)
-    ret = [line.replace(' ', '') for line in ret.splitlines() if '/clock' in line or '/tf' in line]
-    sg.popup(ret)
-
+    num_clock = get_number_from_summary(ret, '/clock')
+    num_tf = get_number_from_summary(ret, '/tf')
+    if (num_clock is not None and num_clock > 10) or (num_tf is not None and num_tf > 10):
+        sg.popup_error('Confirm you applied caret_topic_filter.bash.')
+    else:
+        sg.popup('OK')
     print('Done')
 
 
